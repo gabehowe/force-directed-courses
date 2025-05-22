@@ -1,11 +1,10 @@
 from __future__ import annotations
 import operator
 import sys
-import time
 from functools import reduce
 from typing import List, Dict
-
-from PIL import Image, ImageDraw, ImageColor, ImageFont
+import tkinter as tk
+from PIL import Image, ImageDraw, ImageColor, ImageFont, ImageTk
 import numpy as np
 
 import yaml
@@ -25,6 +24,7 @@ class PhysicalNode:
 
     def dist(self, other: np.ndarray):
         return np.sqrt(np.sum((self.pos - other) ** 2))
+        # return np.sum(np.abs(self.pos - other))
 
     def angle(self, other: np.ndarray):
         d = other - self
@@ -132,9 +132,42 @@ def bounds_list(current_arr, tree: Box):
             current_arr.append(i.bounds)
             bounds_list(current_arr, i)
     return current_arr
+def render_frame(i, min_size, max_size, font):
+    im = Image.new("RGBA", (750, 750), (17, 17, 17))
+    draw = ImageDraw.Draw(im)
+    for index in range(len(i.values())):
+        node = list(i.values())[index]
+        for k in node.link_codes:
+            v = k
+            if isinstance(k, str):
+                v = [v]
+            for j in v:
+                if j in i.keys():
+                    p1 = coords_to_px(node.pos, min_size, max_size, im.width)
+                    p2 = coords_to_px(i[j].pos, min_size, max_size, im.width)
+                    # vector_values = np.array((node.pos, i[j].pos)) * 500 + 0.5 * im.width
+                    vector_values = np.array((p1,p2)).flatten().tolist()
+                    brightness = int(.1 * 255)
+                    draw.line(vector_values, fill=(brightness, brightness, brightness, brightness), width=2)
+
+    # draw_bounds(bounds_arr[n], draw, min_size, max_size, im.width)
+    for index in range(len(i.values())):
+        node = list(i.values())[index]
+        # screen_pos = list(node.pos * 500 + 0.5 * im.width)
+        screen_pos = coords_to_px(node.pos, min_size, max_size, im.width)
+        draw.circle(screen_pos, 3, ImageColor.getrgb(f'hsv({node.depth * 50 % 360}, 100%, 100%)'))
+
+    for index in range(len(i.values())):
+        node = list(i.values())[index]
+        screen_pos = coords_to_px(node.pos, min_size, max_size, im.width)
+        draw.text([screen_pos[0], screen_pos[1] + 5], node.code, "white", font)
+    return im
 
 def force_directed_graph(codes: Dict[str, List[str]]):
     global depth_segments
+    root = tk.Tk()
+    canvas = tk.Canvas(root, width=500, height=500)
+    canvas.pack()
     depths = {i: find_depth(i, codes) for i in codes.keys()}
     depth_segments = 1 / max(depths.values())
     nodes = [PhysicalNode(
@@ -143,12 +176,12 @@ def force_directed_graph(codes: Dict[str, List[str]]):
     frames: List[Dict[str, PhysicalNode]] = []
     bounds_arr = []
     font = ImageFont.truetype("Pillow/Tests/fonts/FreeMono.ttf", 15)
-    fc = 4000
+    fc = 1000
     for i in range(fc):
         tree = simulate(nodes)
         bounds = bounds_list([], tree)
 
-        if i % 100 == 0:
+        if i % 10 == 0:
             print(f'{i / fc * 100:.1f}%')
             frames.append(
                 {n.code: PhysicalNode(n.pos.copy(), n.code, n.link_codes.copy(), depth=n.depth) for n in nodes})
@@ -157,74 +190,11 @@ def force_directed_graph(codes: Dict[str, List[str]]):
     min_size = np.min([np.min([k.pos for i in range(len(frames)) for k in frames[i].values()],0)],0)
     max_size = np.max([np.max([k.pos for i in range(len(frames)) for k in frames[i].values()],0)],0)
     for n in range(len(frames)):
-        i = frames[n]
-        im = Image.new("RGBA", (750, 750), (17, 17, 17))
-        draw = ImageDraw.Draw(im)
-        for index in range(len(i.values())):
-            node = list(i.values())[index]
-            for k in node.link_codes:
-                v = k
-                if isinstance(k, str):
-                    v = [v]
-                for j in v:
-                    if j in i.keys():
-                        p1 = coords_to_px(node.pos, min_size, max_size, im.width)
-                        p2 = coords_to_px(i[j].pos, min_size, max_size, im.width)
-                        # vector_values = np.array((node.pos, i[j].pos)) * 500 + 0.5 * im.width
-                        vector_values = np.array((p1,p2)).flatten().tolist()
-                        brightness = int(.1 * 255)
-                        draw.line(vector_values, fill=(brightness, brightness, brightness, brightness), width=2)
-
-        draw_bounds(bounds_arr[n], draw, min_size, max_size, im.width)
-        for index in range(len(i.values())):
-            node = list(i.values())[index]
-            # screen_pos = list(node.pos * 500 + 0.5 * im.width)
-            screen_pos = coords_to_px(node.pos, min_size, max_size, im.width)
-            draw.circle(screen_pos, 3, ImageColor.getrgb(f'hsv({node.depth * 50 % 360}, 100%, 100%)'))
-
-        for index in range(len(i.values())):
-            node = list(i.values())[index]
-            screen_pos = coords_to_px(node.pos, min_size, max_size, im.width)
-            draw.text([screen_pos[0], screen_pos[1] + 5], node.code, "white", font)
-
-        images.append(im.convert("RGBA"))
-    images[0].save("out.gif", save_all=True, append_images=images[1:] + [images[-1] for _ in range(30)], duration=60, loop=0)
+        images.append(render_frame(frames[n], min_size, max_size, font).convert("RGBA"))
+    images[0].save("out.gif", save_all=True, append_images=images[1:], duration=60, loop=0)
 
 
-# def build_quadtree(nodes, bounds: np.ndarray, depth):
-#     tree = np.zeros(4, dtype=object)
-#     # nodes = filter(lambda it: it.pos[0] in range(bounds[0], bounds[2]) and it.pos[1] in range(bounds[1], bounds[3]),
-#     #                nodes)
-#     boundsl: List[object] = [None for i in range(4)]
-#     for x in range(0, 2):
-#         for y in range(0, 2):
-#             coordinate = y * 2 + x
-#             width = abs(bounds[0] - bounds[2]) / 2
-#             new_bounds = np.concat(
-#                 (np.array((x, y)) * width + bounds[:2], np.array((x, y)) * width + bounds[:2] + [width, width]))
-#             local_nodes = list(filter(
-#                 lambda it: new_bounds[0] < it.pos[0] < new_bounds[2] and new_bounds[1] < it.pos[1] < new_bounds[3],
-#                 nodes))
-#             if len(local_nodes) > 0:
-#                 if depth > 0:
-#                     tree[coordinate], boundsl[coordinate] = build_quadtree(local_nodes, new_bounds, depth - 1)
-#                 else:
-#                     tree[coordinate] = Box(local_nodes, new_bounds[:2] + width, new_bounds, len(local_nodes))
-#                     boundsl[coordinate] = np.append(new_bounds, width)
-#     return tree, boundsl
 
-
-grid_size = 8
-# tree_children <- []
-# subnodes <- nodes in bounds
-# if len(nodes) > 1:
-#   split the bounds into four
-#   for each subbounds,
-#   add  build_quadtree(subnodes, subbounds)  to tree_children
-# elif len(nodes) == 1:
-#   return a box with just this
-# else:
-#   return null
 def build_quadtree(nodes, bounds: np.ndarray):
     tree = Box([], (bounds[2:]+ bounds[:2])/2, bounds, 0, np.sqrt(np.sum((bounds[2:] - bounds[:2])**2)))
     subnodes = list(filter(lambda it: np.all(np.logical_and(bounds[:2] < it.pos , it.pos < bounds[2:])), nodes))
@@ -243,16 +213,17 @@ def build_quadtree(nodes, bounds: np.ndarray):
     return tree
 
 
-depth_factor = 1.5
+depth_factor = 0.7
 def create_comparison_points(node, tree: Box | PhysicalNode, array: list, depth):
     if isinstance(tree, PhysicalNode):
         array.append([ *tree.pos, tree.weight ])
         return array
     for i in tree.children:
-        if node.dist(i.pos) < 0.001: # try to ignore self
+        ds = node.dist(i.pos)
+        if ds < 0.001: # try to ignore self
             continue
         v = i.width if isinstance(i, Box) else 0.005
-        if v / node.dist(i.pos) < depth_factor:
+        if v / ds < depth_factor:
             array.append([  i.pos[0], i.pos[1], i.weight  ])
         else:
             create_comparison_points(node, i, array, depth + 1)
@@ -260,32 +231,30 @@ def create_comparison_points(node, tree: Box | PhysicalNode, array: list, depth)
 
 
 def calculate_force(weight: int, pos: np.ndarray, opos: np.ndarray):
-    opposite_push = 0.00002
     ds = np.sqrt(np.sum((pos - opos) ** 2))
     return (pos - opos) / ds * (weight * opposite_push) / ds ** 2
 
 def calculate_force_arr(opoints: np.ndarray, pos: np.ndarray):
-    opposite_push = 0.00002
     delta =  pos - opoints[:,[0,1]]
     ds = np.sqrt(np.sum(delta ** 2, axis=1)).reshape(-1,1)
     force = delta / ds * (opoints[:,[2]] * opposite_push) / ds ** 2
     return force
 
 
+opposite_push = 0.00002
+gravity = [-0.004, -0.001]
+link_push = -0.14
 def simulate(nodes: List[PhysicalNode]):
     positions = np.array([it.pos for it in nodes])
     # tree, bounds = build_quadtree(nodes, np.concatenate((np.min(positions, 0), np.max(positions, 0))), 1)
     minimum = np.min(np.array([it.pos for it in nodes]), 0) - 0.001
     maximum = np.max(positions, 0) + 0.001
     tree = build_quadtree(nodes, np.concat((minimum, maximum)))
-    gravity = [-0.02, -0.02]
-    link_push = -0.02
     for i in nodes:
-        coordinate = np.floor(((i.pos - minimum) / (maximum + 0.01 - minimum)) * grid_size)
         # pull of the center -- should be proportional to the distance
         # center_pull =  i.pos/i.dist(np.zeros(2)) * gravity/i.dist(np.zeros(2))
-        # depth_center = np.array([((depth_segments * 0.9) * i.depth) - 0.35, 0])
-        depth_center = np.zeros(2)
+        depth_center = np.array([((depth_segments * 0.9) * i.depth) - 0.35, 0])
+        # depth_center = np.zeros(2)
         center_force = (i.pos - depth_center) * gravity
         other_force = np.zeros(2)
         opoints = np.array(create_comparison_points(i, tree,[],0))
