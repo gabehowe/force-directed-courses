@@ -79,7 +79,7 @@ CSCE 330:
 CSCE 350:
   code: CSCE 350
   credit: 3
-  flags: 1
+  flags: 0
   prereqs:
   - CSCE 240
   - - MATH 174
