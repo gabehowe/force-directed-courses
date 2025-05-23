@@ -1,7 +1,11 @@
 from __future__ import annotations
 import operator
 import sys
+import time
+from copy import deepcopy
 from functools import reduce
+from multiprocessing import Lock, Process
+import multiprocessing
 from typing import List, Dict
 import tkinter as tk
 from PIL import Image, ImageDraw, ImageColor, ImageFont, ImageTk
@@ -29,6 +33,7 @@ class PhysicalNode:
     def angle(self, other: np.ndarray):
         d = other - self
         return np.atan2(d[1], d[0])
+
     @property
     def weight(self):
         return 1
@@ -113,18 +118,20 @@ def draw_bounds(bounds: List, draw: ImageDraw, min_size, max_size, imagesize):
     #     scale_factor = bounds[-1] * 2 ** 1
     #     draw.rectangle(((bounds[:-1] * scale_factor + 0.5) * imagesize).tolist(), outline="blue")
     # # else:
-        for i in bounds:
-            if i is None:
-                continue
-            # scale_factor = bounds[-1] * 2 ** 1
-            p1 = np.array(i[:2])
-            p2 = np.array(i[2:])
-            p1 = coords_to_px(p1, min_size, max_size, imagesize)
-            p2 = coords_to_px(p2, min_size, max_size, imagesize)
-            draw.rectangle(np.concat((p1,p2)).tolist(), outline="blue")
+    for i in bounds:
+        if i is None:
+            continue
+        # scale_factor = bounds[-1] * 2 ** 1
+        p1 = np.array(i[:2])
+        p2 = np.array(i[2:])
+        p1 = coords_to_px(p1, min_size, max_size, imagesize)
+        p2 = coords_to_px(p2, min_size, max_size, imagesize)
+        draw.rectangle(np.concat((p1, p2)).tolist(), outline="blue")
+
 
 def coords_to_px(coords, min_size, max_size, imagesize):
-    return (coords - min_size) / (max_size-min_size) * (imagesize * 0.8) + imagesize * 0.1
+    return (coords - min_size) / (max_size - min_size) * (imagesize * 0.8) + imagesize * 0.1
+
 
 def bounds_list(current_arr, tree: Box):
     for i in tree.children:
@@ -132,6 +139,8 @@ def bounds_list(current_arr, tree: Box):
             current_arr.append(i.bounds)
             bounds_list(current_arr, i)
     return current_arr
+
+
 def render_frame(i, min_size, max_size, font):
     im = Image.new("RGBA", (750, 750), (17, 17, 17))
     draw = ImageDraw.Draw(im)
@@ -146,7 +155,7 @@ def render_frame(i, min_size, max_size, font):
                     p1 = coords_to_px(node.pos, min_size, max_size, im.width)
                     p2 = coords_to_px(i[j].pos, min_size, max_size, im.width)
                     # vector_values = np.array((node.pos, i[j].pos)) * 500 + 0.5 * im.width
-                    vector_values = np.array((p1,p2)).flatten().tolist()
+                    vector_values = np.array((p1, p2)).flatten().tolist()
                     brightness = int(.1 * 255)
                     draw.line(vector_values, fill=(brightness, brightness, brightness, brightness), width=2)
 
@@ -163,48 +172,74 @@ def render_frame(i, min_size, max_size, font):
         draw.text([screen_pos[0], screen_pos[1] + 5], node.code, "white", font)
     return im
 
+
+def simulation_thread(nodes,q: multiprocessing.Queue, op, ygrav, xgrav, link):
+    last_frametime = time.time()
+    while True:
+        if q.empty():
+            q.put(simulate(nodes, op.value,ygrav.value,xgrav.value,link.value, time.time() - last_frametime))
+            last_frametime =time.time()
+
+def render_thread(font, node_queue: multiprocessing.Queue, image_queue: multiprocessing.Queue):
+    while True:
+        if not node_queue.empty():
+            nodes = node_queue.get()
+            img = render_frame({n.code: PhysicalNode(n.pos.copy(), n.code, n.link_codes.copy(), depth=n.depth) for n in nodes},
+                np.array([-1, -1]), np.array([1, 1]), font)
+            image_queue.put(img)
+
 def force_directed_graph(codes: Dict[str, List[str]]):
     global depth_segments
     root = tk.Tk()
-    canvas = tk.Canvas(root, width=500, height=500)
-    canvas.pack()
     depths = {i: find_depth(i, codes) for i in codes.keys()}
     depth_segments = 1 / max(depths.values())
     nodes = [PhysicalNode(
         np.array([(np.random.random() * depth_segments + depth_segments * depths[k]), np.random.random()]) - 0.5, k, v,
         depths[k]) for k, v in codes.items()]
-    frames: List[Dict[str, PhysicalNode]] = []
-    bounds_arr = []
     font = ImageFont.truetype("Pillow/Tests/fonts/FreeMono.ttf", 15)
-    fc = 1000
-    for i in range(fc):
-        tree = simulate(nodes)
-        bounds = bounds_list([], tree)
+    img = Image.new('RGBA', (750, 750), (17, 17, 17))
+    image = ImageTk.PhotoImage(img)
+    label = tk.Label(root, image=image)
+    label.pack(side="bottom")
+    dvars = [tk.DoubleVar() for _ in range(4)]
+    scales = [tk.Scale(root, variable=i, from_=0.0, to=100, orient=tk.HORIZONTAL) for i in dvars]
+    threading_values = [multiprocessing.Value('d') for _ in range(4)]
+    for i in scales:
+        i.pack(anchor=tk.CENTER)
 
-        if i % 10 == 0:
-            print(f'{i / fc * 100:.1f}%')
-            frames.append(
-                {n.code: PhysicalNode(n.pos.copy(), n.code, n.link_codes.copy(), depth=n.depth) for n in nodes})
-            bounds_arr.append(bounds)
-    images = []
-    min_size = np.min([np.min([k.pos for i in range(len(frames)) for k in frames[i].values()],0)],0)
-    max_size = np.max([np.max([k.pos for i in range(len(frames)) for k in frames[i].values()],0)],0)
-    for n in range(len(frames)):
-        images.append(render_frame(frames[n], min_size, max_size, font).convert("RGBA"))
-    images[0].save("out.gif", save_all=True, append_images=images[1:], duration=60, loop=0)
+    node_queue = multiprocessing.Queue()
+    image_queue = multiprocessing.Queue()
+    simulation = Process(target=simulation_thread, args=(nodes, node_queue, *threading_values))
+    simulation.start()
+    print("started simulation thread")
+    rendering = Process(target=render_thread, args=(font,node_queue, image_queue))
+    rendering.start()
+    print("started rendering thread")
+    while True:
+        root.update()
+        for i in range(4):
+            threading_values[i].value = scales[i].get()/ 100
+        # bounds = bounds_list([], tree)
 
+        if not image_queue.empty():
+            while not image_queue.empty():
+                image: Image = image_queue.get()
+            tkimage = ImageTk.PhotoImage(image)
+            label.configure(image=tkimage)
+            # print(f'{i / fc * 100:.1f}%')
 
 
 def build_quadtree(nodes, bounds: np.ndarray):
-    tree = Box([], (bounds[2:]+ bounds[:2])/2, bounds, 0, np.sqrt(np.sum((bounds[2:] - bounds[:2])**2)))
-    subnodes = list(filter(lambda it: np.all(np.logical_and(bounds[:2] < it.pos , it.pos < bounds[2:])), nodes))
+    tree = Box([], (bounds[2:] + bounds[:2]) / 2, bounds, 0, np.sqrt(np.sum((bounds[2:] - bounds[:2]) ** 2)))
+    subnodes = list(filter(lambda it: np.all(np.logical_and(bounds[:2] < it.pos, it.pos < bounds[2:])), nodes))
     if len(subnodes) > 1:
-        for x in range(0,2):
-            for y in range(0,2):
+        for x in range(0, 2):
+            for y in range(0, 2):
                 # (min, min + width/2)
                 # (min + width/2, min + width)
-                dimensions = (bounds[:2] - bounds[2:])/2
-                subbounds = (bounds[2:] + np.array([[(1+x)*dimensions[0],(1+y)*dimensions[1]],[x*dimensions[0], y*dimensions[1]] ])).flatten()
+                dimensions = (bounds[:2] - bounds[2:]) / 2
+                subbounds = (bounds[2:] + np.array([[(1 + x) * dimensions[0], (1 + y) * dimensions[1]],
+                                                    [x * dimensions[0], y * dimensions[1]]])).flatten()
                 subtree = build_quadtree(subnodes, subbounds)
                 tree.weight += subtree.weight
                 tree.children.append(subtree)
@@ -214,37 +249,42 @@ def build_quadtree(nodes, bounds: np.ndarray):
 
 
 depth_factor = 0.7
+
+
 def create_comparison_points(node, tree: Box | PhysicalNode, array: list, depth):
     if isinstance(tree, PhysicalNode):
-        array.append([ *tree.pos, tree.weight ])
+        array.append([*tree.pos, tree.weight])
         return array
     for i in tree.children:
         ds = node.dist(i.pos)
-        if ds < 0.001: # try to ignore self
+        if ds < 0.001:  # try to ignore self
             continue
         v = i.width if isinstance(i, Box) else 0.005
         if v / ds < depth_factor:
-            array.append([  i.pos[0], i.pos[1], i.weight  ])
+            array.append([i.pos[0], i.pos[1], i.weight])
         else:
             create_comparison_points(node, i, array, depth + 1)
     return array
 
 
-def calculate_force(weight: int, pos: np.ndarray, opos: np.ndarray):
+def calculate_force(weight: int, pos: np.ndarray, opos: np.ndarray, force_constant):
     ds = np.sqrt(np.sum((pos - opos) ** 2))
-    return (pos - opos) / ds * (weight * opposite_push) / ds ** 2
+    return (pos - opos) / ds * (weight * force_constant) / ds ** 2
 
-def calculate_force_arr(opoints: np.ndarray, pos: np.ndarray):
-    delta =  pos - opoints[:,[0,1]]
-    ds = np.sqrt(np.sum(delta ** 2, axis=1)).reshape(-1,1)
-    force = delta / ds * (opoints[:,[2]] * opposite_push) / ds ** 2
+
+def calculate_force_arr(opoints: np.ndarray, pos: np.ndarray, force_constant):
+    delta = pos - opoints[:, [0, 1]]
+    ds = np.sqrt(np.sum(delta ** 2, axis=1)).reshape(-1, 1)
+    force = delta / ds * (opoints[:, [2]] * force_constant) / ds ** 2
     return force
 
 
-opposite_push = 0.00002
-gravity = [-0.004, -0.001]
-link_push = -0.14
-def simulate(nodes: List[PhysicalNode]):
+# opposite_push = 0.00002
+# gravity = [-0.004, -0.001]
+# link_push = -0.14
+
+
+def simulate(nodes: List[PhysicalNode], op,xgrav,ygrav,link, dtime):
     positions = np.array([it.pos for it in nodes])
     # tree, bounds = build_quadtree(nodes, np.concatenate((np.min(positions, 0), np.max(positions, 0))), 1)
     minimum = np.min(np.array([it.pos for it in nodes]), 0) - 0.001
@@ -255,11 +295,11 @@ def simulate(nodes: List[PhysicalNode]):
         # center_pull =  i.pos/i.dist(np.zeros(2)) * gravity/i.dist(np.zeros(2))
         depth_center = np.array([((depth_segments * 0.9) * i.depth) - 0.35, 0])
         # depth_center = np.zeros(2)
-        center_force = (i.pos - depth_center) * gravity
+        center_force = (i.pos - depth_center) * [-xgrav, -ygrav]
         other_force = np.zeros(2)
-        opoints = np.array(create_comparison_points(i, tree,[],0))
-        forces = calculate_force_arr(opoints, i.pos)
-        other_force += np.sum(forces,axis=0)
+        opoints = np.array(create_comparison_points(i, tree, [], 0))
+        forces = calculate_force_arr(opoints, i.pos, op * 10**-3)
+        other_force += np.sum(forces, axis=0)
 
         # test_force = 0
         # for o in opoints:
@@ -270,10 +310,10 @@ def simulate(nodes: List[PhysicalNode]):
                 continue
             if o.code in i.link_codes:
                 # or i.code in o.link_codes -- make courses attracted to classes that require them
-                other_force += (i.pos - o.pos) * i.dist(o.pos) * link_push
+                other_force += (i.pos - o.pos) * i.dist(o.pos) * -link
         total_force = center_force + other_force
-        i.pos += total_force
-    return tree
+        i.pos += total_force * dtime
+    return nodes
 
 
 def chart_courses():
