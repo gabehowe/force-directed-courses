@@ -2,385 +2,385 @@ CSCE 145:
   code: CSCE 145
   credit: 4
   flags: 1
-  prereqs: []
+  prereqs: [ ]
   title: Algorithmic Design I
 CSCE 146:
   code: CSCE 146
   credit: 4
   flags: 1
   prereqs:
-  - CSCE 145
+    - - CSCE 145
   title: Algorithmic Design II
 CSCE 190:
   code: CSCE 190
   credit: 1
   flags: 0
   prereqs:
-  - - CSCE 104
-    - CSCE 106
-    - CSCE 145
-    - CSCE 205
+    - - CSCE 104
+      - CSCE 106
+      - CSCE 145
+      - CSCE 205
   title: Computing in the Modern World
 CSCE 211:
   code: CSCE 211
   credit: 3
   flags: 0
   prereqs:
-  - MATH 141
+    - - MATH 141
   title: Digital Logic Design
 CSCE 212:
   code: CSCE 212
   credit: 3
   flags: 0
   prereqs:
-  - CSCE 211
-  - CSCE 145
+    - - CSCE 211
+    - - CSCE 145
   title: Intro to Computer Architecture
 CSCE 215:
   code: CSCE 215
   credit: 1
   flags: 1
   prereqs:
-  - CSCE 145
+    - - CSCE 145
   title: UNIX/Linux Fundamentals
 CSCE 240:
   code: CSCE 240
   credit: 3
   flags: 0
   prereqs:
-  - CSCE 215
-  - CSCE 146
+    - - CSCE 215
+    - - CSCE 146
   title: Adv. Programming Techniques
 CSCE 247:
   code: CSCE 247
   credit: 3
   flags: 0
   prereqs:
-  - CSCE 146
+    - - CSCE 146
   title: Software Engineering
 CSCE 311:
   code: CSCE 311
   credit: 3
   flags: 0
   prereqs:
-  - CSCE 240
-  - CSCE 212
+    - - CSCE 240
+    - - CSCE 212
   title: Operating Systems
 CSCE 330:
   code: CSCE 330
   credit: 3
   flags: 0
   prereqs:
-  - CSCE 240
-  - - MATH 174
-    - MATH 374
-    - MATH 574
+    - - CSCE 240
+    - - MATH 174
+      - MATH 374
+      - MATH 574
   title: Prog. Lang. Structures fall only
 CSCE 350:
   code: CSCE 350
   credit: 3
   flags: 0
   prereqs:
-  - CSCE 240
-  - - MATH 174
-    - MATH 374
-    - MATH 574
-  - MATH 141
+    - - CSCE 240
+    - - MATH 174
+      - MATH 374
+      - MATH 574
+    - - MATH 141
   title: Data Structures & Algorithms
 CSCE 355:
   code: CSCE 355
   credit: 3
   flags: 0
   prereqs:
-  - CSCE 211
-  - CSCE 212
-  - CSCE 350
+    - - CSCE 211
+    - - CSCE 212
+    - - CSCE 350
   title: Foundations of Computation
 CSCE 390:
   code: CSCE 390
   credit: 1
   flags: 0
-  prereqs: []
+  prereqs: [ ]
   title: Prof. Issues in Comp. Sci. Engr.
 CSCE 416:
   code: CSCE 416
   credit: 3
   flags: 0
   prereqs:
-  - CSCE 146
+    - - CSCE 146
   title: Intro. to Computer Networks
 CSCE 490:
   code: CSCE 490
   credit: 3
   flags: 0
   prereqs:
-  - CSCE 240
-  - CSCE 350
+    - - CSCE 240
+    - - CSCE 350
   title: Capstone Computing Project I fall only
 CSCE 492:
   code: CSCE 492
   credit: 3
   flags: 0
   prereqs:
-  - CSCE 240
-  - CSCE 350
-  - CSCE 490
+    - - CSCE 240
+    - - CSCE 350
+    - - CSCE 490
   title: Capstone Computing Project II spring only
 CSCE 513:
   code: CSCE 513
   credit: 3
   flags: 0
   prereqs:
-  - CSCE 211
-  - CSCE 212
+    - - CSCE 211
+    - - CSCE 212
   title: Computer Architecture
 CSCE 531:
   code: CSCE 531
   credit: 3
   flags: 0
   prereqs:
-  - CSCE 240
+    - - CSCE 240
   title: Compiler Construction
 CSCE 544:
   code: CSCE 544
   credit: 3
   flags: 0
   prereqs:
-  - - CSCE 300
-    - CSCE 350
-    - MATH 374
-    - MATH 574
+    - - CSCE 300
+      - CSCE 350
+      - MATH 374
+      - MATH 574
   title: Functional Programming
 CSCE 551:
   code: CSCE 551
   credit: 3
   flags: 0
   prereqs:
-  - - CSCE 350
-    - MATH 300
+    - - CSCE 350
+      - MATH 300
   title: Theory of Computation
 CSCE 564:
   code: CSCE 564
   credit: 3
   flags: 0
   prereqs:
-  - MATH 526
-  - - CSCE 146
-    - CSCE 207
-    - CSCE 500
+    - - MATH 526
+    - - CSCE 146
+      - CSCE 207
+      - CSCE 500
   title: Computational Science
 CSCE 565:
   code: CSCE 565
   credit: 3
   flags: 0
   prereqs:
-  - CSCE 240
-  - - MATH 526
-    - MATH 544
+    - - CSCE 240
+    - - MATH 526
+      - MATH 544
   title: Introduction to Computer Graphics
 CSCE 569:
   code: CSCE 569
   credit: 3
   flags: 0
   prereqs:
-  - - MATH 544
-    - MATH 344
+    - - MATH 544
+      - MATH 344
   title: Parallel Computing
 CSCE 574:
   code: CSCE 574
   credit: 3
   flags: 0
   prereqs:
-  - CSCE 211
-  - CSCE 212
-  - CSCE 240
+    - - CSCE 211
+    - - CSCE 212
+    - - CSCE 240
   title: Robotics
 CSCE 611:
   code: CSCE 611
   credit: 3
   flags: 0
   prereqs:
-  - CSCE 212
+    - - CSCE 212
   title: Advanced Digital Design
 ELCT 220:
   code: ELCT 220
   credit: 3
   flags: 0
   prereqs:
-  - MATH 142
+    - - MATH 142
   title: Electrical Engineering for Non-Majors
 ELCT 221:
   code: ELCT 221
   credit: 3
   flags: 0
   prereqs:
-  - MATH 142
-  - - ELCT 102
-    - AESP 265
-    - ELCT 220
+    - - MATH 142
+    - - ELCT 102
+      - AESP 265
+      - ELCT 220
   title: Circuits
 ELCT 222:
   code: ELCT 222
   credit: 3
   flags: 0
   prereqs:
-  - ELCT 221
-  - MATH 242
+    - - ELCT 221
+    - - MATH 242
   title: Signals and Systems
 ENGL 101:
   code: ENGL 101
   credit: 0
   flags: 2
-  prereqs: []
+  prereqs: [ ]
   title: Critical Reading and Composition
 ENGL 102:
   code: ENGL 102
   credit: 0
   flags: 2
   prereqs:
-  - ENGL 101
+    - - ENGL 101
   title: Rhetoric and Composition
 ENGL 462:
   code: ENGL 462
   credit: 3
   flags: 0
   prereqs:
-  - ENGL 101
-  - ENGL 102
+    - - ENGL 101
+    - - ENGL 102
   title: Technical Writing
 MATH 141:
   code: MATH 141
   credit: 0
   flags: 2
-  prereqs: []
+  prereqs: [ ]
   title: Calculus I
 MATH 142:
   code: MATH 142
   credit: 4
   flags: 0
   prereqs:
-  - MATH 141
+    - - MATH 141
   title: Calculus II
 MATH 241:
   code: MATH 241
   credit: 3
   flags: 0
   prereqs:
-  - MATH 142
+    - - MATH 142
   title: Vector Calculus
 MATH 242:
   code: MATH 242
   credit: 3
   flags: 0
   prereqs:
-  - MATH 142
+    - - MATH 142
   title: Elementary Differential Equations
 MATH 300:
   code: MATH 300
   credit: 3
   flags: 0
   prereqs:
-  - MATH 142
+    - - MATH 142
   title: Transition to Advanced Mathematics
 MATH 521:
   code: MATH 521
   credit: 3
   flags: 0
   prereqs:
-  - - MATH 520
-    - MATH 242
+    - - MATH 520
+      - MATH 242
   title: Boundary Value Problems and Partial Differential Equations
 MATH 522:
   code: MATH 522
   credit: 3
   flags: 0
   prereqs:
-  - - MATH 344
-    - MATH 544
+    - - MATH 344
+      - MATH 544
   title: Wavelets
 MATH 526:
   code: MATH 526
   credit: 3
   flags: 0
   prereqs:
-  - MATH 142
+    - - MATH 142
   title: Numerical Linear Algebra
 MATH 527:
   code: MATH 527
   credit: 3
   flags: 0
   prereqs:
-  - - MATH 520
-    - MATH 242
+    - - MATH 520
+      - MATH 242
   title: Numerical Analysis
 MATH 528:
   code: MATH 528
   credit: 3
   flags: 0
   prereqs:
-  - - MATH 344
-    - MATH 544
+    - - MATH 344
+      - MATH 544
   title: Mathematical Foundation of Data Science and Machine Learning
 MATH 529:
   code: MATH 529
   credit: 3
   flags: 0
   prereqs:
-  - - MATH 328
-    - MATH 344
-    - MATH 544
+    - - MATH 328
+      - MATH 344
+      - MATH 544
   title: Introduction to Deep Neural Networks
 MATH 540:
   code: MATH 540
   credit: 3
   flags: 0
   prereqs:
-  - MATH 300
+    - - MATH 300
   title: Modern Applied Algebra
 MATH 541:
   code: MATH 541
   credit: 3
   flags: 0
   prereqs:
-  - MATH 300
-  - - MATH 544
-    - MATH 344
+    - - MATH 300
+    - - MATH 544
+      - MATH 344
   title: Algebraic Coding Theory
 MATH 544:
   code: MATH 544
   credit: 3
   flags: 0
   prereqs:
-  - MATH 241
-  - MATH 300
+    - - MATH 241
+    - - MATH 300
   title: Linear Algebra
 MATH 544L:
   code: MATH 544L
   credit: 1
   flags: 0
   prereqs:
-  - MATH 544
+    - - MATH 544
   title: Linear Algebra Lab
 MATH 570:
   code: MATH 570
   credit: 3
   flags: 0
   prereqs:
-  - MATH 300
-  - - MATH 544
-    - MATH 344
+    - - MATH 300
+    - - MATH 544
+      - MATH 344
   title: Discrete Optimization
 MATH 574:
   code: MATH 574
   credit: 3
   flags: 0
   prereqs:
-  - MATH 300
+    - - MATH 300
   title: Discrete Mathematics I
 STAT 509:
   code: STAT 509
   credit: 3
   flags: 0
   prereqs:
-  - MATH 142
+    - - MATH 142
   title: Statistics for Engineers
