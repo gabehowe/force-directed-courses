@@ -7,6 +7,7 @@ import tkinter as tk
 from PIL import Image, ImageDraw, ImageColor, ImageFont, ImageTk
 import numpy as np
 import os
+import time
 
 import yaml
 from dataclasses import dataclass, asdict
@@ -15,7 +16,7 @@ filename = "course_description.yml"
 
 depth_segments = 1
 type CourseData = Dict[str, Course]
-type TreeData = List[PhysicalNode | Tree]
+type TreeData = List[PhysicalNode | Box]
 
 
 @dataclass
@@ -64,22 +65,24 @@ class Course:
         self.prereqs = list(filter(lambda it: len(it) > 0, self.prereqs))
 
 def input_courses():
-   """Asks for and saves user input."""
-    code, title = input("Code: ").strip().upper(), input("Title: ").strip(),
+   """
+   Asks for and saves user input.
+   """
 
-    prerequisites = [i.strip() for i in input("Prereqs: ").strip().split(",")]
-    prerequisites = [tuple([e.strip() for e in i.split('/')]) if '/' in i else i for i in prerequisites]
+   code, title = input("Code: ").strip().upper(), input("Title: ").strip().upper()
+   prerequisites = [i.strip() for i in input("Prereqs: ").strip().split(",")]
+   prerequisites = [tuple([e.strip() for e in i.split('/')]) if '/' in i else i for i in prerequisites]
 
-    flags = [int(i.strip()) for i in input("flags (1cbe, 2dc): ").strip().split()]
-    credit = int(input("credits: ").strip())
-    bitwise = reduce(operator.or_, flags)
-    course = Course(code, title, prerequisites, bitwise, credit)
-    with open(filename) as file:
-        data = yaml.safe_load(file)
-    data[code] = asdict(course)
-    with open(filename, "w+") as file:
-        yaml.safe_dump(data, file)
-    input_courses()
+   flags = [int(i.strip()) for i in input("flags (1cbe, 2dc): ").strip().split()]
+   credit = int(input("credits: ").strip())
+   bitwise = reduce(operator.or_, flags)
+   course = Course(code, title, prerequisites, bitwise, credit)
+   with open(filename) as file:
+       data = yaml.safe_load(file)
+   data[code] = asdict(course)
+   with open(filename, "w+") as file:
+       yaml.safe_dump(data, file)
+   input_courses()
 
 
 def load_courses(filepath: os.path.PathLike) -> Dict[str, Course]:
@@ -88,7 +91,6 @@ def load_courses(filepath: os.path.PathLike) -> Dict[str, Course]:
     Returns:
         a mapping of each course ID to each course object.
     """
-    # TODO: don't use global state (what is "filename" and when is it changed?)
     with open(filepath) as file:
         courses = yaml.safe_load(file)
     return {k: Course(**v) for k, v in courses.items()}
@@ -117,7 +119,7 @@ def broken_courses(filepath: os.path.PathLike):
         print(", ".join(broken))
 
 
-def find_depth(key: str, codes: Dict[str, Course]) -> int:
+def find_depth(key: str, codes: Dict[str, List[str]]) -> int:
     """
     The number of prerequisites of a node.
     Args:
@@ -171,7 +173,7 @@ def coords_to_px(coords: np.ndarray, min_size: np.ndarray, max_size: np.ndarray,
     return (coords - min_size) / (max_size - min_size) * (image_size * 0.8) + image_size * 0.1
 
 
-def bounds_list(current_arr: TreeData, tree: Box) -> TreeData:
+def bounds_list(current_arr: List[np.ndarray], tree: Box) -> List[np.ndarray]:
     """
     Recursively creates a list of bounds from the bound quadtree.
     Args:
@@ -187,7 +189,7 @@ def bounds_list(current_arr: TreeData, tree: Box) -> TreeData:
     return current_arr
 
 
-def render_frame(frame_data: Dict[str, PhysicalNode], min_size: np.ndarray, max_size: np.ndarray, font: ImageFont.Font) -> Image:
+def render_frame(frame_data: Dict[str, PhysicalNode], min_size: np.ndarray, max_size: np.ndarray, font: ImageFont.Font) -> Image.Image:
     """
     Render a single frame from stored data
     Args:
@@ -209,7 +211,7 @@ def render_frame(frame_data: Dict[str, PhysicalNode], min_size: np.ndarray, max_
             for j in v:
                 if j in frame_data.keys():
                     p1 = coords_to_px(node.pos, min_size, max_size, im.width)
-                    p2 = coords_to_px(i[j].pos, min_size, max_size, im.width)
+                    p2 = coords_to_px(frame_data[j].pos, min_size, max_size, im.width)
                     # vector_values = np.array((node.pos, i[j].pos)) * 500 + 0.5 * im.width
                     vector_values = np.array((p1, p2)).flatten().tolist()
                     brightness = int(.1 * 255)
@@ -244,8 +246,8 @@ def force_directed_graph(codes: Dict[str, List[str]]):
     global depth_segments
     # TODO: figure out why this is very slow
     root = tk.Tk()
-    canvas = tk.Canvas(root, width=500, height=500)
-    canvas.pack()
+    im = Image.new("RGBA", (750, 750), (17, 17, 17))
+
     depths = {i: find_depth(i, codes) for i in codes.keys()}
     depth_segments = 1 / max(depths.values())
     nodes = [PhysicalNode(
@@ -254,25 +256,58 @@ def force_directed_graph(codes: Dict[str, List[str]]):
     frames: List[Dict[str, PhysicalNode]] = []
     bounds_arr = []
     font = ImageFont.truetype("Pillow/Tests/fonts/FreeMono.ttf", 15)
-    fc = 1000
+
+    tkimg = ImageTk.PhotoImage(im)
+    label = tk.Label(root, image=tkimg)
+    coords  = [ 0,0 ]
+
+
+    # bind to events.
+    def set_motion(e):
+        coords[0]=e.x
+        coords[1]=e.y
+
+    root.bind("<Motion>", set_motion)
+    root.bind("<Escape>", lambda _: sys.exit(1))
+    label.pack(side="bottom")
+
+    fc = 250000000
+    frame_time = 0
     for i in range(fc):
-        tree = simulate(nodes)
+        times =[time.perf_counter_ns()]
+        size = np.array((root.winfo_height(), root.winfo_height()))
+        cursor_pos =  (np.array(coords) - 80) * 1.25
+        frame =  {n.code: PhysicalNode(n.pos.copy(), n.code, n.link_codes.copy(), depth=n.depth) for n in nodes}
+        min_size = np.min([np.min([k.pos for k in frame.values()], 0)], 0)
+        max_size = np.max([np.max([k.pos for k in frame.values()], 0)], 0)
+        graph_cursor_pos = ((cursor_pos / size * (max_size - min_size)) + min_size)
+        # print(size, cursor_pos, graph_cursor_pos)
+        times.append(time.perf_counter_ns())
+        tree = simulate(nodes,frame_time, graph_cursor_pos)
+        times.append(time.perf_counter_ns())
         bounds = bounds_list([], tree)
 
-        if i % 10 == 0:
-            print(f'{i / fc * 100:.1f}%')
-            frames.append(
-                {n.code: PhysicalNode(n.pos.copy(), n.code, n.link_codes.copy(), depth=n.depth) for n in nodes})
-            bounds_arr.append(bounds)
+        frame['cursor'] = PhysicalNode(graph_cursor_pos, "cursor", [], 0)
+        times.append(time.perf_counter_ns())
+        im = render_frame(frame, min_size, max_size, font).convert("RGBA")
+        times.append(time.perf_counter_ns())
+        del frame['cursor']
+        tkimg = ImageTk.PhotoImage(im)
+        label.configure(image = tkimg)
+        bounds_arr.append(bounds)
+        root.update()
+        times.append(time.perf_counter_ns())
+        frame_time = (times[-1] - times[0])/1_000_000
+        print(",".join([str((times[i] - times[i-i])/1_000_000) for i in range(1, len(times))]))
+
+
     images = []
-    min_size = np.min([np.min([k.pos for i in range(len(frames)) for k in frames[i].values()], 0)], 0)
-    max_size = np.max([np.max([k.pos for i in range(len(frames)) for k in frames[i].values()], 0)], 0)
-    for n in range(len(frames)):
-        images.append(render_frame(frames[n], min_size, max_size, font).convert("RGBA"))
+    # for n in range(len(frames)):
+    #     images.append(render_frame(frames[n], min_size, max_size, font).convert("RGBA"))
     images[0].save("out.gif", save_all=True, append_images=images[1:], duration=60, loop=0)
 
 
-def build_quadtree(nodes: List[PhysicalNode], bounds: np.ndarray) -> Box:
+def build_quadtree(nodes: List[PhysicalNode | Box], bounds: np.ndarray) -> Box:
     """
     Builds a quadtree from a list of nodes for gravity approximation.
     Args:
@@ -303,7 +338,7 @@ def build_quadtree(nodes: List[PhysicalNode], bounds: np.ndarray) -> Box:
 depth_factor = 0.7
 
 
-def create_comparison_points(node: PhysicalNode, tree: Box | PhysicalNode, array: list, depth: int) -> List[float, float, float]:
+def create_comparison_points(node: PhysicalNode, tree: Box | PhysicalNode, array: list, depth: int) -> List[float]:
     """
     Recursively creates approximated masses for use in calculation relative to the input node.
     Args:
@@ -355,20 +390,28 @@ def calculate_force_arr(opoints: np.ndarray, pos: np.ndarray):
     """
     delta = pos - opoints[:, [0, 1]]
     ds = np.sqrt(np.sum(delta ** 2, axis=1)).reshape(-1, 1)
-    force = delta / ds * (opoints[:, [2]] * opposite_push) / ds ** 2
+    # f = (p1-p2)/(||p1 - p2||) * (mc)/||p1-p2||^2
+    #   = mc(p1-p2)/||p1-p2||^3. Too aggressive!
+    # force = delta / ds * (opoints[:, [2]] * opposite_push) / ds ** 2
+    #   => mc(p1-p2)/||p1-p2||^2
+    m = opoints[:, [2]]
+    force = m*opposite_push*delta/ds**2
+
     return force
 
 # constants which can be changed manually for different results
-opposite_push = 0.00002
+opposite_push = 0.02
 gravity = [-0.015, -0.003]
 link_push = -0.10
 
 
-def simulate(nodes: List[PhysicalNode]) -> Box:
+def simulate(nodes: List[PhysicalNode], frame_time: float, cursor_pos: np.ndarray) -> Box:
     """
     Updates the node force simulation.
     Args:
         nodes: The nodes to update.
+        frame_time: The time since the last frame.
+        cursor_pos: The position of the cursor.
     Returns:
         The updated tree of nodes.
     """
@@ -391,8 +434,12 @@ def simulate(nodes: List[PhysicalNode]) -> Box:
             if o.code in i.link_codes:
                 # or i.code in o.link_codes -- make courses attracted to classes that require them
                 other_force += (i.pos - o.pos) * i.dist(o.pos) * link_push
-        total_force = center_force + other_force
-        i.pos += total_force
+        cursor_force = calculate_force(1, i.pos, cursor_pos)
+        total_force = center_force + other_force + cursor_force
+        if np.sum(total_force) > 1:
+            # force is too high by manhattan distance
+            print("Force too high!")
+        i.pos += np.clip(total_force * frame_time / 30, -1, 1)
     return tree
 
 
@@ -402,7 +449,7 @@ def chart_courses(filepath: os.path.PathLike):
     Args:
         filepath: The path to from which to load courses.
     """
-    broken_courses()
+    broken_courses(filepath)
     courses = load_courses(filepath)
     roots = []
     for v in courses.values():
@@ -427,11 +474,14 @@ def chart_courses(filepath: os.path.PathLike):
 # create simple text input method to input courses
 
 if __name__ == '__main__':
-    match sys.argv[1].strip():
-        case "-i":
-            input_courses()
-        case "-c":
-            chart_courses()
-            # 3.88x speed increase
-        case "-b":
-            broken_courses()
+    try: 
+        match sys.argv[1].strip():
+            case "-i":
+                input_courses()
+            case "-c":
+                chart_courses(filename)
+                # 3.88x speed increase
+            case "-b":
+                broken_courses(filename)
+    except IndexError:
+        print("Args must be one of -i, -c, -b", file=sys.stderr)
