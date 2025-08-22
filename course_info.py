@@ -1,20 +1,34 @@
-import re
+#!/usr/bin/env python
 
+"""
+Rudimentary HTML scraper for looking up USC courses.
+
+Usage: 
+    course_info.py [-s] <course code>
+Examples: 
+    course_info.py MATH 300
+    course_info.py -s MATH 554
+"""
+
+
+import re
 import requests
 import sys
 from bs4 import BeautifulSoup
-from bs4.element import Tag
 
 URL = "https://academicbulletins.sc.edu/ribbit/index.cgi?page=getcourse.rjs&code="
 
 
 def main(args):
     if len(args) < 1:
-        print("couldn't, sorry")
+        print("Not enough arguments!", file=sys.stderr)
         return
     args[0] = args[0].upper().strip()
+
+    # specifically allow for a space before the number w/o quotes, i.e., MATH 300 rather than "MATH 300"
+    if len(args) > 1:
+        args[0] += ' '+args[1].upper().strip()
     req = requests.get(URL + args[0])
-    # print(req)
     soup = BeautifulSoup(req.content, 'xml')
     html = BeautifulSoup(soup.contents[0].contents[1].contents[0], 'lxml')
     title_bits = [i.text for i in html.find_all('strong')]
@@ -35,11 +49,18 @@ def main(args):
         'gpa_code': gpa_code
     }
 
+def sheetify(x):
+    """Turn the data into a format acceptable for pasting into Google Sheets."""
+    ci = main(x)
+    print(ci['code'], ci['title'], ci['credits'], ','.join(ci['prerequisites']), sep=';')
 
 if __name__ == '__main__':
-    print(main(sys.argv[1:]))
+    args: list = sys.argv[1:]
+    try: 
+        args.remove('-s')
+        sheetify(args)
+    except ValueError:
+        print(main(args))
 
 
-def sheetify(x):
-    ci = main([x])
-    print(ci['code'], ci['title'], ci['credits'], ','.join(ci['prerequisites']), sep=';')
+
