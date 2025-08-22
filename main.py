@@ -8,6 +8,7 @@ from PIL import Image, ImageDraw, ImageColor, ImageFont, ImageTk
 import numpy as np
 import os
 import time
+import itertools
 
 import yaml
 from dataclasses import dataclass, asdict
@@ -28,9 +29,7 @@ class PhysicalNode:
     depth: int
 
     def dist(self, other: np.ndarray):
-
-        return np.sqrt(np.sum((self.pos - other) ** 2))
-        # return np.sum(np.abs(self.pos - other))
+        return np.hypot(*(self.pos - other))
 
     def angle(self, other: np.ndarray):
         d = other - self
@@ -49,7 +48,6 @@ class Box:
     bounds: np.ndarray
     weight: int
     width: float
-
 
 @dataclass
 class Course:
@@ -222,7 +220,8 @@ def render_frame(frame_data: Dict[str, PhysicalNode], min_size: np.ndarray, max_
         node = list(frame_data.values())[index]
         # screen_pos = list(node.pos * 500 + 0.5 * im.width)
         screen_pos = coords_to_px(node.pos, min_size, max_size, im.width)
-        draw.circle(screen_pos, 3, ImageColor.getrgb(f'hsv({node.depth * 50 % 360}, 100%, 100%)'))
+        radius = 200 / np.hypot(*(max_size - min_size))
+        draw.circle(screen_pos, radius, ImageColor.getrgb(f'hsv({node.depth * 50 % 360}, 100%, 100%)'))
 
     for index in range(len(frame_data.values())):
         node = list(frame_data.values())[index]
@@ -244,12 +243,12 @@ def force_directed_graph(codes: Dict[str, List[str]]):
         codes: A mapping of the course titles to their prerequisites.
     """
     global depth_segments
-    # TODO: figure out why this is very slow
+    # TODO: stop using Image.
     root = tk.Tk()
     im = Image.new("RGBA", (750, 750), (17, 17, 17))
 
     depths = {i: find_depth(i, codes) for i in codes.keys()}
-    depth_segments = 1 / max(depths.values())
+    depth_segments = .25 / max(depths.values())
     nodes = [PhysicalNode(
         np.array([(np.random.random() * depth_segments + depth_segments * depths[k]), np.random.random()]) - 0.5, k, v,
         depths[k]) for k, v in codes.items()]
@@ -266,18 +265,26 @@ def force_directed_graph(codes: Dict[str, List[str]]):
     def set_motion(e):
         coords[0]=e.x
         coords[1]=e.y
+    def set_exit(e): # because of poor python lambda support.
+        should_exit[0] = True
 
+    should_exit = [False]
     root.bind("<Motion>", set_motion)
-    root.bind("<Escape>", lambda _: sys.exit(1))
+    root.bind("<Escape>", set_exit)
     label.pack(side="bottom")
 
-    fc = 250000000
+    images = []
     frame_time = 0
-    for i in range(fc):
+    i=0
+    while not should_exit[0]:
+        i+=1
         times =[time.perf_counter_ns()]
+
         size = np.array((root.winfo_height(), root.winfo_height()))
         cursor_pos =  (np.array(coords) - 80) * 1.25
+
         frame =  {n.code: PhysicalNode(n.pos.copy(), n.code, n.link_codes.copy(), depth=n.depth) for n in nodes}
+        frames.append(frame)
         min_size = np.min([np.min([k.pos for k in frame.values()], 0)], 0)
         max_size = np.max([np.max([k.pos for k in frame.values()], 0)], 0)
         graph_cursor_pos = ((cursor_pos / size * (max_size - min_size)) + min_size)
@@ -289,19 +296,21 @@ def force_directed_graph(codes: Dict[str, List[str]]):
 
         frame['cursor'] = PhysicalNode(graph_cursor_pos, "cursor", [], 0)
         times.append(time.perf_counter_ns())
-        im = render_frame(frame, min_size, max_size, font).convert("RGBA")
+        images.append(render_frame(frame, min_size, max_size, font).convert("RGBA"))
         times.append(time.perf_counter_ns())
         del frame['cursor']
-        tkimg = ImageTk.PhotoImage(im)
+
+        tkimg = ImageTk.PhotoImage(images[-1])
         label.configure(image = tkimg)
+
         bounds_arr.append(bounds)
         root.update()
+
         times.append(time.perf_counter_ns())
         frame_time = (times[-1] - times[0])/1_000_000
-        print(",".join([str((times[i] - times[i-i])/1_000_000) for i in range(1, len(times))]))
+        # print(",".join([str((times[i] - times[i-i])/1_000_000) for i in range(1, len(times))]))
 
 
-    images = []
     # for n in range(len(frames)):
     #     images.append(render_frame(frames[n], min_size, max_size, font).convert("RGBA"))
     images[0].save("out.gif", save_all=True, append_images=images[1:], duration=60, loop=0)
@@ -400,9 +409,28 @@ def calculate_force_arr(opoints: np.ndarray, pos: np.ndarray):
     return force
 
 # constants which can be changed manually for different results
-opposite_push = 0.02
-gravity = [-0.015, -0.003]
-link_push = -0.10
+opposite_push = 0.1
+gravity = [-.035, -0.03]
+link_push = .9
+spring_length = 50
+
+
+def calculate_log_attractive_force(desired_length: float, p1: np.ndarray, p2: np.ndarray):
+	"""
+	Calculates the spring force based on the log of the distance between two points.
+	Args:
+		desired_length: The desired distance between the two points to settle at.
+		p1: The first point.
+		p2: The second point.
+	Returns:
+		A 2d force vector.
+	References:
+		https://youtu.be/gJiSvGbH0CA?si=Uq5vodxAltA6grg9	
+		A heuristic for graph drawing, Peter Eades
+	"""
+	delta = p2-p1
+	return np.log(np.hypot(*delta))/desired_length * delta
+	
 
 
 def simulate(nodes: List[PhysicalNode], frame_time: float, cursor_pos: np.ndarray) -> Box:
@@ -431,15 +459,17 @@ def simulate(nodes: List[PhysicalNode], frame_time: float, cursor_pos: np.ndarra
         for o in nodes:
             if o.code == i.code:
                 continue
-            if o.code in i.link_codes:
+            if o.code in itertools.chain.from_iterable(i.link_codes) or i.code in itertools.chain.from_iterable(o.link_codes):
                 # or i.code in o.link_codes -- make courses attracted to classes that require them
-                other_force += (i.pos - o.pos) * i.dist(o.pos) * link_push
+                other_force += calculate_log_attractive_force(spring_length, i.pos, o.pos) * link_push
+
         cursor_force = calculate_force(1, i.pos, cursor_pos)
         total_force = center_force + other_force + cursor_force
-        if np.sum(total_force) > 1:
+        mv = 100
+        if np.sum(total_force) > mv:
             # force is too high by manhattan distance
             print("Force too high!")
-        i.pos += np.clip(total_force * frame_time / 30, -1, 1)
+        i.pos += np.clip(total_force * frame_time / 30, -mv, mv)
     return tree
 
 
