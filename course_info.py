@@ -3,9 +3,9 @@
 """
 Rudimentary HTML scraper for looking up USC courses.
 
-Usage: 
+Usage:
     course_info.py [-s] <course code>
-Examples: 
+Examples:
     course_info.py MATH 300
     course_info.py -s MATH 554
 """
@@ -52,11 +52,11 @@ def main(args):
 def sheetify(x):
     """Turn the data into a format acceptable for pasting into Google Sheets."""
     ci = main(x)
-    print(ci['code'], ci['title'], ci['credits'], ','.join(ci['prerequisites']), sep=';')
+    print(ci['code'], ci['title'], ci['credits'], ','.join(ci['prerequisites']), sep='\t')
 
 if __name__ == '__main__':
     args: list = sys.argv[1:]
-    try: 
+    try:
         args.remove('-s')
         sheetify(args)
     except ValueError:
